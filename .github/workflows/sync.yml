@@ -1,0 +1,39 @@
+name: Sync Instagram
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"   # every two hours
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the latest posts
+        env:
+          INSTAGRAM_TOKEN: ${{ secrets.INSTAGRAM_TOKEN }}
+          FEED_KEY: ${{ secrets.FEED_KEY }}
+        run: python3 sync_instagram.py
+      - name: Publish changes
+        if: always()
+        run: |
+          git config user.name "hbc-feed-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A feed.json media status.json token.enc 2>/dev/null || true
+          # status.json changes every run; only commit when something else changed
+          # or once a day, which also keeps this scheduled job active.
+          if git diff --cached --quiet -- feed.json media token.enc && [ "$(date -u +%H)" != "00" ]; then
+            git reset -q
+            echo "Nothing new to publish."
+          else
+            git commit -qm "Update Instagram feed" && git push -q
+          fi
