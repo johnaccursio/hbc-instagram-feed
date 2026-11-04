@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Publish @hybridboysclub's latest Instagram posts as a static feed.
 
-Runs on GitHub Actions every two hours.  It reads the account through the
+Runs on GitHub Actions every 15 minutes.  It reads the account through the
 Instagram API with Instagram Login, saves each post's image to media/<id>.jpg
 (Instagram's own image links expire), and writes feed.json, which the Hybrid
-Boys Club app reads.  Only content that is already public on Instagram is
+Boys Club app reads.  Active stories are saved to stories/ and published
+to the `stories` branch, which is replaced on every run.  Only content that is already public on Instagram is
 published here.
 
 The access token is never stored in plain text:
@@ -19,6 +20,7 @@ from datetime import datetime, timezone
 
 API = "https://graph.instagram.com"
 VERSION = "v25.0"
+STORY_FIELDS = "id,media_type,media_url,thumbnail_url,permalink,timestamp"
 FIELDS = "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,children{media_type,media_url,thumbnail_url}"
 LIMIT = 24
 KEY = os.environ.get("FEED_KEY", "")
@@ -70,6 +72,45 @@ def write_status(ok, message, extra=None):
     status = {"ok": ok, "message": message, "checkedAt": now_iso()}
     status.update(extra or {})
     json.dump(status, open("status.json", "w"), indent=2)
+
+
+def sync_stories(token):
+    """Active stories (last 24 hours) go to stories/ and stories/stories.json.
+    The workflow publishes that folder to the `stories` branch, replacing it
+    each time, so expired stories leave no history.  Returns None if
+    Instagram won't return stories for this token."""
+    try:
+        items = get_json(f"{VERSION}/me/stories", fields=STORY_FIELDS, access_token=token).get("data", [])
+    except RuntimeError as exc:
+        print("Stories unavailable:", exc)
+        return None
+    os.makedirs("stories", exist_ok=True)
+    out, keep = [], set()
+    for st in items:
+        sid, kind = st["id"], st.get("media_type")
+        image_src = st.get("thumbnail_url") if kind == "VIDEO" else st.get("media_url")
+        if not image_src:
+            continue
+        entry = {"id": sid, "mediaType": kind, "image": f"{sid}.jpg", "permalink": st.get("permalink"), "timestamp": st.get("timestamp")}
+        try:
+            if not os.path.exists(f"stories/{sid}.jpg"):
+                open(f"stories/{sid}.jpg", "wb").write(get(image_src))
+            keep.add(f"{sid}.jpg")
+            if kind == "VIDEO" and st.get("media_url"):
+                if not os.path.exists(f"stories/{sid}.mp4"):
+                    open(f"stories/{sid}.mp4", "wb").write(get(st["media_url"]))
+                keep.add(f"{sid}.mp4")
+                entry["video"] = f"{sid}.mp4"
+        except Exception as exc:
+            print("Skipped story", sid, exc)
+            continue
+        out.append(entry)
+    for name in os.listdir("stories"):
+        if name != "stories.json" and name not in keep:
+            os.remove(f"stories/{name}")
+    json.dump({"stories": out, "updatedAt": now_iso()}, open("stories/stories.json", "w"), indent=2)
+    print(f"{len(out)} active stories.")
+    return out
 
 
 def main():
@@ -142,6 +183,8 @@ def main():
         if name.endswith(".jpg") and p not in keep:
             os.remove(p)
 
+    stories = sync_stories(token)
+
     feed = {"username": me.get("username"), "posts": posts}
     old = json.load(open("feed.json")) if os.path.exists("feed.json") else {}
     if {k: old.get(k) for k in feed} != feed:
@@ -150,7 +193,7 @@ def main():
         print(f"Published {len(posts)} posts.")
     else:
         print("No new posts.")
-    extra = {"posts": len(posts)}
+    extra = {"posts": len(posts), "stories": None if stories is None else len(stories)}
     if state.get("expiresAt"):
         extra["tokenExpiresAt"] = datetime.fromtimestamp(state["expiresAt"], timezone.utc).strftime("%Y-%m-%d")
     write_status(True, "Synced", extra)

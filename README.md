@@ -1,10 +1,11 @@
 # HBC Instagram feed
 
-The latest posts from [@hybridboysclub](https://www.instagram.com/hybridboysclub/), refreshed every two hours for the Hybrid Boys Club app's "On Instagram" widget.
+The latest posts from [@hybridboysclub](https://www.instagram.com/hybridboysclub/), checked every 15 minutes for the Hybrid Boys Club app's "On Instagram" widget.
 
 - `feed.json`: post list (caption, type, image, Instagram link, time).
 - `media/`: post images (Instagram's own image links expire).
 - `status.json`: last sync result.
+- `stories` branch: active stories (`stories.json`, images and videos).  It is replaced on every run, so expired stories leave no history.
 
 Everything here is already public on Instagram.  The access token is kept in this repository's secrets (`INSTAGRAM_TOKEN`).  After its weekly refresh it is stored only in encrypted form (`token.enc`, encrypted with the `FEED_KEY` secret).
 
