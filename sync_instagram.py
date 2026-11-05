@@ -22,7 +22,12 @@ API = "https://graph.instagram.com"
 VERSION = "v25.0"
 STORY_FIELDS = "id,media_type,media_url,thumbnail_url,permalink,timestamp"
 FIELDS = "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,children{media_type,media_url,thumbnail_url}"
-LIMIT = 24
+LIMIT = 50
+# The club feed shows the last two weeks of posts; at least MIN_POSTS are
+# kept so the app's Home widget always has photos.
+DAYS = 14
+MIN_POSTS = 6
+MAX_PAGES = 10
 KEY = os.environ.get("FEED_KEY", "")
 SECRET_TOKEN = os.environ.get("INSTAGRAM_TOKEN", "").strip()
 
@@ -72,6 +77,34 @@ def write_status(ok, message, extra=None):
     status = {"ok": ok, "message": message, "checkedAt": now_iso()}
     status.update(extra or {})
     json.dump(status, open("status.json", "w"), indent=2)
+
+
+def parse_ts(ts):
+    try:
+        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S%z")
+    except Exception:
+        return None
+
+
+def recent_media(token):
+    """Posts from the last DAYS days (newest first), and at least MIN_POSTS."""
+    cutoff = datetime.now(timezone.utc).timestamp() - DAYS * 86400
+    page = get_json(f"{VERSION}/me/media", fields=FIELDS, limit=LIMIT, access_token=token)
+    out = []
+    for _ in range(MAX_PAGES):
+        data = page.get("data", [])
+        out.extend(data)
+        oldest = parse_ts(data[-1].get("timestamp", "")) if data else None
+        nxt = (page.get("paging") or {}).get("next")
+        if not nxt or not oldest or oldest.timestamp() < cutoff:
+            break
+        page = json.loads(get(nxt))
+    keep = []
+    for m in out:
+        t = parse_ts(m.get("timestamp", ""))
+        if len(keep) < MIN_POSTS or (t and t.timestamp() >= cutoff):
+            keep.append(m)
+    return keep
 
 
 def sync_stories(token):
@@ -143,7 +176,7 @@ def main():
             save_state(state)
 
         me = get_json(f"{VERSION}/me", fields="username", access_token=token)
-        media = get_json(f"{VERSION}/me/media", fields=FIELDS, limit=LIMIT, access_token=token).get("data", [])
+        media = recent_media(token)
     except RuntimeError as exc:
         write_status(False, str(exc))
         print("Sync failed:", exc)
