@@ -1,6 +1,6 @@
 # HBC Instagram feed
 
-The latest posts from [@hybridboysclub](https://www.instagram.com/hybridboysclub/), checked every 15 minutes for the Hybrid Boys Club app's "On Instagram" widget.
+The latest posts from [@hybridboysclub](https://www.instagram.com/hybridboysclub/), checked every 5 minutes for the Hybrid Boys Club app's "On Instagram" widget.
 
 - `feed.json`: post list (caption, type, image, Instagram link, time).
 - `media/`: post images (Instagram's own image links expire).

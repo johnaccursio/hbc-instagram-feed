@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Publish @hybridboysclub's latest Instagram posts as a static feed.
 
-Runs on GitHub Actions every 15 minutes.  It reads the account through the
+Runs on GitHub Actions every 5 minutes.  It reads the account through the
 Instagram API with Instagram Login, saves each post's image to media/<id>.jpg
 (Instagram's own image links expire), and writes feed.json, which the Hybrid
 Boys Club app reads.  Active stories are saved to stories/ and published

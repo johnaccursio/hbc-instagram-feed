@@ -2,7 +2,7 @@ name: Sync Instagram
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # every 15 minutes (GitHub may delay scheduled runs)
+    - cron: "*/5 * * * *"   # every 5 minutes, GitHub's shortest schedule (runs can be delayed)
   workflow_dispatch:
 
 permissions:
@@ -31,7 +31,7 @@ jobs:
           git add -A feed.json media status.json token.enc 2>/dev/null || true
           # status.json changes every run; commit only when something else
           # changed, plus once a day so the schedule stays active.
-          if git diff --cached --quiet -- feed.json media token.enc && [ "$(date -u +%H%M)" -ge 0015 ]; then
+          if git diff --cached --quiet -- feed.json media token.enc && [ "$(date -u +%H%M)" -ge 0005 ]; then
             git reset -q
             echo "No new posts to publish."
           else
