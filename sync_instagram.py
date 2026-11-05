@@ -98,7 +98,11 @@ def recent_media(token):
         nxt = (page.get("paging") or {}).get("next")
         if not nxt or not oldest or oldest.timestamp() < cutoff:
             break
-        page = json.loads(get(nxt))
+        try:
+            page = json.loads(get(nxt))
+        except Exception as exc:  # keep what we have if a later page fails
+            print("Stopped paging:", exc)
+            break
     keep = []
     for m in out:
         t = parse_ts(m.get("timestamp", ""))
